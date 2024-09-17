@@ -73,6 +73,8 @@ def convert_text_to_speech(text, output_tts_path, output_rvc_path):
             tts_voice=APPLIO_TTS_VOICE,
             output_tts_path=output_tts_path,
             output_rvc_path=output_rvc_path,
+            pth_path=APPLIO_PTH_PATH,
+            index_path=APPLIO_INDEX_PATH,
             tts_rate=0,
             pitch=0,
             filter_radius=3,
