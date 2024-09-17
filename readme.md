@@ -89,7 +89,7 @@ Feel free to submit issues or pull requests if you have suggestions or improveme
 
 ## Contact
 
-For questions or feedback, please contact [EMAIL](github@petrilionis.lt) or open an issue on the project's GitHub repository.
+For questions or feedback, please contact github@petrilionis.lt or open an issue on the project's GitHub repository.
 
 ## External Services
 
