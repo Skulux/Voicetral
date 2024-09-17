@@ -73,6 +73,23 @@ def convert_text_to_speech(text, output_tts_path, output_rvc_path):
             tts_voice=APPLIO_TTS_VOICE,
             output_tts_path=output_tts_path,
             output_rvc_path=output_rvc_path,
+            tts_rate=0,
+            pitch=0,
+            filter_radius=3,
+            index_rate=0.75,
+            volume_envelope=1,
+            protect=0.5,
+            hop_length=128,
+            f0_method="rmvpe",
+            split_audio=False,
+            f0_autotune=False,
+            clean_audio=True,
+            clean_strength=0.5,
+            export_format="WAV",
+            upscale_audio=False,
+            f0_file=None,
+            embedder_model="contentvec",
+            embedder_model_custom=None,
             api_name="/run_tts_script"
         )
         logging.info(f"Applio Response: {response}")
