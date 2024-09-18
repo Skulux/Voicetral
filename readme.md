@@ -49,8 +49,8 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 1. Clone the repository:
     ```bash
-    git clone <repository_url>
-    cd <repository_directory>
+    git clone https://github.com/Skulux/Voicetral
+    cd Voicetral
     ```
 
 2. Create and activate a virtual environment:
@@ -79,6 +79,7 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 3. Follow the on-screen prompts. Speak into your microphone to interact with the bot.
 
+4. Say "exit" to stop the program. It is important if you want to save your conversation history.
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
