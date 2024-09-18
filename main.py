@@ -163,8 +163,9 @@ def filter_response(input_text, filtered_chars=FILTERED_CHARS):
     :param filtered_chars: Characters to filter out.
     :return: Filtered text.
     """
+    sym = [' ', '?', '!', '.', ',', ':', ';', '-', "'", '*']
     filtered_text = ''.join(
-        char for char in input_text if char.isalnum() or char in filtered_chars)
+        char for char in input_text if (char.isalnum() or char in sym) and char not in filtered_chars)
     if filtered_text != input_text:
         removed_chars = ''.join(char for char in input_text if char not in filtered_text)
         logging.info(f"Removed characters: {removed_chars}")
@@ -178,7 +179,7 @@ def main():
     """
     user_id = "user"
     conversation_history = load_conversation_history(user_id)
-    logging.info("Welcome to the combined Ollama and Applio Chatbot!")
+    logging.info("Welcome to the Voicetral!\nTalk to me or say 'exit' to end and save the conversation")
 
     while True:
         user_input = speech_to_text(INPUT_DEVICE_INDEX)
