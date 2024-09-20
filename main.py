@@ -7,6 +7,7 @@ import sounddevice as sd
 from scipy.io import wavfile
 from short_term_memory import load_conversation_history, save_conversation_history
 import logging
+import time
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -31,6 +32,22 @@ FILTERED_CHARS = config['DEFAULT']['filtered_chars']
 client = Client(config['GRADIO_CLIENT']['url'])
 
 
+def time_wrapper(func):
+    """
+    Wrapper function to measure the time taken by a function.
+    :param func: The function to measure.
+    :return: The wrapped function.
+    """
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        logging.info(f"{func.__name__} took {round(end_time - start_time, 2)} seconds")
+        return result
+    return wrapper
+
+
+@time_wrapper
 def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_history=None):
     """
     Get a response from Ollama given a prompt and user ID.
@@ -59,6 +76,7 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
         return "[ERROR] Failed to get response."
 
 
+@time_wrapper
 def convert_text_to_speech(text, output_tts_path, output_rvc_path):
     """
     Convert text to speech using Applio's TTS API.
@@ -101,6 +119,7 @@ def convert_text_to_speech(text, output_tts_path, output_rvc_path):
         return None
 
 
+@time_wrapper
 def resample_audio(file_path, target_sample_rate=44100):
     """
     Resample an audio file to a target sample rate.
@@ -133,7 +152,7 @@ def play_audio(file_path, output_device=None):
     except Exception as e:
         logging.error(f"Could not play audio: {e}")
 
-
+@time_wrapper
 def speech_to_text(input_device=INPUT_DEVICE_INDEX):
     """
     Convert speech to text using the SpeechRecognition library.
@@ -155,7 +174,7 @@ def speech_to_text(input_device=INPUT_DEVICE_INDEX):
             logging.error("Speech recognition service request failed.")
             return None
 
-
+@time_wrapper
 def filter_response(input_text, filtered_chars=FILTERED_CHARS):
     """
     Filter out unwanted characters from the input text.
