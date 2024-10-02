@@ -1,4 +1,6 @@
 import json
+import logging
+import os
 
 def save_conversation_history(user_id, conversation_history):
     """
@@ -7,12 +9,13 @@ def save_conversation_history(user_id, conversation_history):
     :param user_id: The ID of the user whose conversation history is being saved.
     :param conversation_history: The conversation history dictionary.
     """
+    temp_path = f"conversation_history_{user_id}.json.temp"
     try:
-        with open(f"conversation_history_{user_id}.json", "w") as file:
+        with open(temp_path, "w") as file:
             json.dump(conversation_history, file)
-        print(f"Conversation history saved for user: {user_id}")
+        os.replace(temp_path, f"conversation_history_{user_id}.json")
     except Exception as e:
-        print(f"Error saving conversation history: {e}")
+        logging.error(f"Error saving conversation history: {e}")
 
 def load_conversation_history(user_id):
     """

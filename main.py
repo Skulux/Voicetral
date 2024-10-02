@@ -130,8 +130,14 @@ def resample_audio(file_path, target_sample_rate=44100):
     try:
         audio = AudioSegment.from_file(file_path)
         audio = audio.set_frame_rate(target_sample_rate)
-        resampled_path = file_path.replace(".wav", "_resampled.wav")
-        audio.export(resampled_path, format="wav")
+        try:
+            resampled_path = file_path.replace(".wav", "_resampled.wav")
+            audio.export(resampled_path, format="wav")
+        except IOError as e:
+            logging.error(f"Error exporting resampled audio: {e}")
+            logging.info("Exporting to default path: non_resampled.wav")
+            audio.export("non_resampled.wav", format="wav")
+            return "non_resampled.wav"
         return resampled_path
     except Exception as e:
         logging.error(f"Could not resample audio: {e}")
