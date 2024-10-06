@@ -1,6 +1,7 @@
 import configparser
 import ollama
 import speech_recognition as sr
+import whisper
 from gradio_client import Client
 from pydub import AudioSegment
 import sounddevice as sd
@@ -8,9 +9,14 @@ from scipy.io import wavfile
 from short_term_memory import load_conversation_history, save_conversation_history
 import logging
 import time
+import wave
+import tempfile
+import numpy as np
+
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+model = whisper.load_model("base")
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -39,6 +45,7 @@ def time_wrapper(func):
     :return: The wrapped function.
     """
     def wrapper(*args, **kwargs):
+        logging.info(f"Running {func.__name__}...")
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
@@ -62,17 +69,27 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
         if user_id not in conversation_history:
             conversation_history[user_id] = []
 
+        # shorten conversation history to last 3 messages + first message
+        if len(conversation_history[user_id]) > 3:
+            shortened_history = conversation_history[user_id][-3:]
+            shortened_history.insert(0, conversation_history[user_id][0])
+
+
+        # Add user message to conversation history
         conversation_history[user_id].append({'role': 'user', 'content': START_PROMPT + prompt})
-        ollama_response = ollama.chat(model=model, stream=True, messages=conversation_history[user_id])
 
-        response_content = ""
-        for chunk in ollama_response:
-            response_content += chunk['message']['content']
+        # Get the response from Ollama without streaming
+        ollama_response = ollama.chat(model=model, stream=False, messages=conversation_history[user_id])
 
+        # Directly extract the response content
+        response_content = ollama_response['message']['content']
+
+        # Add assistant's response to conversation history
         conversation_history[user_id].append({'role': 'assistant', 'content': response_content})
+
         return response_content
     except Exception as e:
-        logging.error(f"An error occurred while getting a response from Ollama: {e}")
+        logging.error(f"[OLLAMA] An error occurred while getting a response from Ollama: {e}")
         return "[ERROR] Failed to get response."
 
 
@@ -112,7 +129,7 @@ def convert_text_to_speech(text, output_tts_path, output_rvc_path):
             embedder_model_custom=None,
             api_name="/run_tts_script"
         )
-        logging.info(f"Applio Response: {response}")
+        logging.info(f"Response: {response}")
         return output_rvc_path
     except Exception as e:
         logging.error(f"Could not convert text to speech: {e}")
@@ -158,26 +175,117 @@ def play_audio(file_path, output_device=None):
     except Exception as e:
         logging.error(f"Could not play audio: {e}")
 
-@time_wrapper
-def speech_to_text(input_device=INPUT_DEVICE_INDEX):
+
+def speech_to_text_whisper(audio_file):
     """
-    Convert speech to text using the SpeechRecognition library.
+    Convert speech to text using the Whisper model.
+    :param audio_file: The path to the audio file to transcribe.
+    :return: The recognized text or None if not recognized.
+    """
+    try:
+        logging.info("Transcribing audio using Whisper...")
+        result = model.transcribe(audio_file)  # Pass the path of the audio file
+        text = result['text']
+        logging.info(f"Transcribed text: {text}")
+        return text
+    except Exception as e:
+        logging.error(f"Whisper transcription failed: {e}")
+        return None
+
+
+@time_wrapper
+def speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="sr"):
+    """
+    Convert speech to text using either the SpeechRecognition library or Whisper.
     :param input_device: The input device index to use.
+    :param mode: The mode of transcription ('sr' for SpeechRecognition or 'whisper' for Whisper).
     :return: The recognized text or None if not recognized.
     """
     recognizer = sr.Recognizer()
+
     with sr.Microphone(device_index=input_device) as source:
         logging.info("Listening...")
         audio = recognizer.listen(source)
+        logging.info("Audio captured.")
+
         try:
-            text = recognizer.recognize_google(audio)
-            logging.info(f"You said: {text}")
-            return text
+            if mode == "sr":
+                # Using SpeechRecognition
+                text = recognizer.recognize_google(audio)
+                logging.info(f"You said: {text}")
+                return text
+            elif mode == "whisper":
+                # Save the audio to a temporary file for Whisper
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                    temp_file_name = temp_file.name
+                    # Save audio data
+                    with wave.open(temp_file_name, 'wb') as wf:
+                        wf.setnchannels(1)  # Mono
+                        wf.setsampwidth(2)  # Sample width in bytes
+                        wf.setframerate(44100)  # Sample rate
+                        wf.writeframes(audio.get_raw_data())  # Write audio data
+
+                # Call the Whisper transcription function
+                return speech_to_text_whisper(temp_file_name)
+            else:
+                logging.error(f"Invalid mode specified: {mode}")
+                return None
         except sr.UnknownValueError:
             logging.error("Could not understand the audio.")
             return None
         except sr.RequestError:
             logging.error("Speech recognition service request failed.")
+            return None
+        except Exception as e:
+            logging.error(f"An unexpected error occurred: {e}")
+            return None
+
+
+@time_wrapper
+def speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="sr"):
+    """
+    Convert speech to text using either the SpeechRecognition library or Whisper.
+    :param input_device: The input device index to use.
+    :param mode: The mode of transcription ('sr' for SpeechRecognition or 'whisper' for Whisper).
+    :return: The recognized text or None if not recognized.
+    """
+    recognizer = sr.Recognizer()
+
+    with sr.Microphone(device_index=input_device) as source:
+        logging.info("Listening...")
+        audio = recognizer.listen(source)
+        logging.info("Audio captured.")
+
+        try:
+            if mode == "sr":
+                # Using SpeechRecognition
+                text = recognizer.recognize_google(audio)
+                logging.info(f"You said: {text}")
+                return text
+            elif mode == "whisper":
+                # Save the audio to a temporary file for Whisper
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                    temp_file_name = temp_file.name
+                    # Save audio data
+                    with wave.open(temp_file_name, 'wb') as wf:
+                        wf.setnchannels(1)  # Mono
+                        wf.setsampwidth(2)  # Sample width in bytes
+                        wf.setframerate(44100)  # Sample rate
+                        wf.writeframes(audio.get_raw_data())  # Write audio data
+
+                # Call the Whisper transcription function
+                return speech_to_text_whisper(temp_file_name)
+            else:
+                logging.error(f"Invalid mode specified: {mode}")
+                return None
+        except sr.UnknownValueError:
+            logging.error("Could not understand the audio.")
+            return None
+        except sr.RequestError:
+            logging.error("Speech recognition service request failed.")
+            return None
+        except Exception as e:
+            logging.error(f"An unexpected error occurred: {e}")
             return None
 
 @time_wrapper
@@ -207,7 +315,7 @@ def main():
     logging.info("Welcome to the Voicetral!\nTalk to me or say 'exit' to end and save the conversation")
 
     while True:
-        user_input = speech_to_text(INPUT_DEVICE_INDEX)
+        user_input = speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="whisper")
         if user_input:
             if user_input.lower() == "exit":
                 save_conversation_history(user_id, conversation_history)
