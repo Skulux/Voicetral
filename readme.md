@@ -2,13 +2,13 @@
 
 ## Overview
 
-This project provides an interface between the Ollama model and Applio's text-to-speech (TTS) and voice conversion services. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using Applio.
+This project provides an interface between the Ollama model and a text-to-speech (TTS) engine using gTTS. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using gTTS.
 
 ## Features
 
 - Speech-to-text conversion using `speech_recognition`.
 - Text generation using the Ollama model.
-- Text-to-speech conversion and voice conversion using Applio.
+- Text-to-speech conversion using gTTS.
 - Audio playback using `sounddevice`.
 - Audio resampling and processing with `pydub`.
 
@@ -19,7 +19,7 @@ This project provides an interface between the Ollama model and Applio's text-to
 - Python 3.9
 - [FFmpeg](https://ffmpeg.org/download.html) (for audio processing)
 - **Ollama**: A model service for text generation. [Visit Ollama's website](https://ollama.com) for installation and usage instructions.
-- **Applio**: A service for text-to-speech and voice conversion. [Visit Applio's website](https://applio.org) for installation and usage instructions.
+- **gTTS**: Used for text-to-speech synthesis.
 
 ### Python Packages
 
@@ -33,17 +33,14 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 2. **Ollama**: Install and run the Ollama service according to the instructions on their website. Make sure it's accessible at the specified URL.
 
-3. **Applio**: Install and run the Applio service according to the instructions on their website. Ensure it is running locally on the specified port (default: `http://127.0.0.1:6969/`).
+3. **gTTS**: No additional setup is required for gTTS beyond installing the package.
 
 4. **Configuration File**: Update the `config.ini` file with the appropriate paths and settings for your environment. 
 
    - `START_PROMPT`: Your initial prompt for the Ollama model.
    - `OLLAMA_MODEL`: The name of the Ollama model to use.
-   - `APPLIO_TTS_VOICE`: The voice configuration for Applio's TTS.
-   - `APPLIO_PTH_PATH`: Path to Applio's model file.
-   - `APPLIO_INDEX_PATH`: Path to Applio's index file.
-   - `APPLIO_TTS_OUTPUT_PATH`: Path where the TTS output will be saved.
-   - `APPLIO_RVC_OUTPUT_PATH`: Path where the RVC output will be saved.
+   - `TTS_LANGUAGE`: Language code used by gTTS.
+   - `TTS_OUTPUT_PATH`: Path where the TTS output will be saved.
 
 ## Installation
 
@@ -66,7 +63,7 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 4. Ensure FFmpeg is installed and properly configured in your PATH.
 
-5. Install and start the Ollama and Applio services as per their respective instructions.
+5. Install and start the Ollama service as per its instructions.
 
 ## Usage
 
@@ -95,4 +92,3 @@ For questions or feedback, please contact github@petrilionis.lt or open an issue
 ## External Services
 
 - **Ollama**: [Installation and usage instructions](https://ollama.com)
-- **Applio**: [Installation and usage instructions](https://applio.org)
