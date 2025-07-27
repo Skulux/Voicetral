@@ -4,7 +4,9 @@ import io
 import ollama
 import speech_recognition as sr
 import whisper
-from gtts import gTTS
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+import numpy as np
 from pydub import AudioSegment
 import sounddevice as sd
 from scipy.io import wavfile
@@ -27,11 +29,12 @@ config.read('config.ini')
 # Access configuration values
 START_PROMPT = config['DEFAULT']['start_prompt']
 OLLAMA_MODEL = config['DEFAULT']['ollama_model']
-TTS_LANGUAGE = config['DEFAULT']['tts_language']
+BARK_VOICE_PRESET = config['DEFAULT'].get('bark_voice_preset', 'v2/en_speaker_6')
 TTS_OUTPUT_PATH = config['DEFAULT']['tts_output_path']
 INPUT_DEVICE_INDEX = config.getint('DEFAULT', 'input_device_index')
 OUTPUT_DEVICE_INDEX = config.getint('DEFAULT', 'output_device_index')
 FILTERED_CHARS = config['DEFAULT']['filtered_chars']
+BARK_MODELS_PRELOADED = False
 
 
 def time_wrapper(func):
@@ -92,19 +95,19 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
 @time_wrapper
 def convert_text_to_speech(text, output_tts_path):
     """
-    Convert text to speech using gTTS.
+    Convert text to speech using Suno's Bark.
     :param text: The text to convert to speech.
     :param output_tts_path: The path to save the audio file.
     :return: The path to the generated audio file.
     """
+    global BARK_MODELS_PRELOADED
     try:
-        tts = gTTS(text=text, lang=TTS_LANGUAGE)
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            temp_mp3 = tmp.name
-        tts.save(temp_mp3)
-        audio = AudioSegment.from_file(temp_mp3, format="mp3")
-        audio.export(output_tts_path, format="wav")
-        os.remove(temp_mp3)
+        if not BARK_MODELS_PRELOADED:
+            preload_models()
+            BARK_MODELS_PRELOADED = True
+        audio_array = generate_audio(text, history_prompt=BARK_VOICE_PRESET)
+        audio_int16 = np.int16(audio_array * 32767)
+        write_wav(output_tts_path, SAMPLE_RATE, audio_int16)
         return output_tts_path
     except Exception as e:
         logging.error(f"Could not convert text to speech: {e}")
@@ -168,52 +171,6 @@ def speech_to_text_whisper(audio_file):
         return None
 
 
-@time_wrapper
-def speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="sr"):
-    """
-    Convert speech to text using either the SpeechRecognition library or Whisper.
-    :param input_device: The input device index to use.
-    :param mode: The mode of transcription ('sr' for SpeechRecognition or 'whisper' for Whisper).
-    :return: The recognized text or None if not recognized.
-    """
-    recognizer = sr.Recognizer()
-
-    with sr.Microphone(device_index=input_device) as source:
-        logging.info("Listening...")
-        audio = recognizer.listen(source)
-        logging.info("Audio captured.")
-
-        try:
-            if mode == "sr":
-                # Using SpeechRecognition
-                text = recognizer.recognize_google(audio)
-                logging.info(f"You said: {text}")
-                return text
-            elif mode == "whisper":
-                # Save the audio to a temporary file for Whisper
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                    temp_file_name = temp_file.name
-                    # Save audio data
-                    with wave.open(temp_file_name, 'wb') as wf:
-                        wf.setnchannels(1)  # Mono
-                        wf.setsampwidth(2)  # Sample width in bytes
-                        wf.setframerate(44100)  # Sample rate
-                        wf.writeframes(audio.get_raw_data())  # Write audio data
-
-                # Call the Whisper transcription function
-                return speech_to_text_whisper(temp_file_name)
-            else:
-                logging.error(f"Invalid mode specified: {mode}")
-                return None
-        except sr.UnknownValueError:
-            logging.error("Could not understand the audio.")
-            return None
-        except sr.RequestError:
-            logging.error("Speech recognition service request failed.")
-            return None
-        except Exception as e:
-            logging.error(f"An unexpected error occurred: {e}")
-            return None
 
 
 @time_wrapper

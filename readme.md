@@ -2,13 +2,13 @@
 
 ## Overview
 
-This project provides an interface between the Ollama model and a text-to-speech (TTS) engine using gTTS. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using gTTS.
+This project provides an interface between the Ollama model and a text-to-speech (TTS) engine using Suno's Bark. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using Bark.
 
 ## Features
 
 - Speech-to-text conversion using `speech_recognition`.
 - Text generation using the Ollama model.
-- Text-to-speech conversion using gTTS.
+- Text-to-speech conversion using Bark.
 - Audio playback using `sounddevice`.
 - Audio resampling and processing with `pydub`.
 
@@ -19,7 +19,7 @@ This project provides an interface between the Ollama model and a text-to-speech
 - Python 3.9
 - [FFmpeg](https://ffmpeg.org/download.html) (for audio processing)
 - **Ollama**: A model service for text generation. [Visit Ollama's website](https://ollama.com) for installation and usage instructions.
-- **gTTS**: Used for text-to-speech synthesis.
+- **Bark**: Used for text-to-speech synthesis.
 
 ### Python Packages
 
@@ -33,13 +33,13 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 2. **Ollama**: Install and run the Ollama service according to the instructions on their website. Make sure it's accessible at the specified URL.
 
-3. **gTTS**: No additional setup is required for gTTS beyond installing the package.
+3. **Bark**: Run the provided `setup_bark.sh` script to download the required models.
 
 4. **Configuration File**: Update the `config.ini` file with the appropriate paths and settings for your environment. 
 
    - `START_PROMPT`: Your initial prompt for the Ollama model.
    - `OLLAMA_MODEL`: The name of the Ollama model to use.
-   - `TTS_LANGUAGE`: Language code used by gTTS.
+   - `BARK_VOICE_PRESET`: Voice preset to use with Bark.
    - `TTS_OUTPUT_PATH`: Path where the TTS output will be saved.
 
 ## Installation
@@ -60,10 +60,14 @@ The required Python packages are listed in `requirements.txt`. To install them, 
     ```bash
     pip install -r requirements.txt
    ```
+4. Run the Bark setup script to download the models:
+    ```bash
+    ./setup_bark.sh
+    ```
 
-4. Ensure FFmpeg is installed and properly configured in your PATH.
+5. Ensure FFmpeg is installed and properly configured in your PATH.
 
-5. Install and start the Ollama service as per its instructions.
+6. Install and start the Ollama service as per its instructions.
 
 ## Usage
 
