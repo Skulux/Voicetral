@@ -3,3 +3,5 @@
 .git
 *.iml
 __pychache__
+start_prompts.txt
+device_getter.py

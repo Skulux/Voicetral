@@ -1,5 +1,8 @@
 import configparser
+import io
+
 import ollama
+import requests
 import speech_recognition as sr
 import whisper
 from gradio_client import Client
@@ -33,6 +36,8 @@ OUTPUT_DEVICE_INDEX = config.getint('DEFAULT', 'output_device_index')
 APPLIO_TTS_OUTPUT_PATH = config['DEFAULT']['applio_tts_output_path']
 APPLIO_RVC_OUTPUT_PATH = config['DEFAULT']['applio_rvc_output_path']
 FILTERED_CHARS = config['DEFAULT']['filtered_chars']
+TTS_RATE = 0
+PITCH = 0
 
 # Initialize Gradio Client for Applio
 client = Client(config['GRADIO_CLIENT']['url'])
@@ -55,7 +60,7 @@ def time_wrapper(func):
 
 
 @time_wrapper
-def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_history=None):
+def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_history=None, limit=3):
     """
     Get a response from Ollama given a prompt and user ID.
     :param prompt: Your input prompt.
@@ -70,8 +75,8 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
             conversation_history[user_id] = []
 
         # shorten conversation history to last 3 messages + first message
-        if len(conversation_history[user_id]) > 3:
-            shortened_history = conversation_history[user_id][-3:]
+        if len(conversation_history[user_id]) > limit > 0:
+            shortened_history = conversation_history[user_id][-limit:]
             shortened_history.insert(0, conversation_history[user_id][0])
 
 
@@ -95,6 +100,7 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
 
 @time_wrapper
 def convert_text_to_speech(text, output_tts_path, output_rvc_path):
+    global TTS_RATE, PITCH
     """
     Convert text to speech using Applio's TTS API.
     :param text: The text to convert to speech.
@@ -305,28 +311,42 @@ def filter_response(input_text, filtered_chars=FILTERED_CHARS):
     return filtered_text
 
 
+import asyncio
+
+async def convert_text_to_speech_async(text, output_tts_path, output_rvc_path):
+    global TTS_RATE, PITCH
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, convert_text_to_speech, text, output_tts_path, output_rvc_path)
+
+
+def preload_applio():
+    global client
+    client = Client(config['GRADIO_CLIENT']['url'])  # Initialize once
+
+
 def main():
     """
     Main function to run the combined Ollama and Applio chatbot.
     :return: None
     """
     user_id = "user"
+    preload_applio()
     conversation_history = load_conversation_history(user_id)
     logging.info("Welcome to the Voicetral!\nTalk to me or say 'exit' to end and save the conversation")
 
     while True:
         user_input = speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="whisper")
         if user_input:
-            if user_input.lower() == "exit":
+            if user_input.lower() == "exit" or "goodbye" in user_input.lower():
                 save_conversation_history(user_id, conversation_history)
                 break
 
-            response = get_ollama_response(user_input, user_id, conversation_history=conversation_history)
+            response = get_ollama_response(user_input, user_id, conversation_history=conversation_history, limit=0)
             response = filter_response(response)
 
             tts_path = APPLIO_TTS_OUTPUT_PATH
             rvc_path = APPLIO_RVC_OUTPUT_PATH
-            audio_file = convert_text_to_speech(response, tts_path, rvc_path)
+            audio_file = asyncio.run(convert_text_to_speech_async(response, tts_path, rvc_path))
 
             if audio_file:
                 resampled_audio = resample_audio(audio_file)
