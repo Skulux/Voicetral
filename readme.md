@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project provides an interface between the Ollama model and Applio's text-to-speech (TTS) and voice conversion services. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using Applio.
+This project provides an interface between the Ollama model and Applio's text-to-speech (TTS) and voice conversion services. It converts user speech input into text, generates responses using Ollama, and then synthesizes and plays back the response using Applio. The newest Applio releases expose their functionality over plain HTTP with CORS enabled instead of the previous gradio API.
 
 ## Features
 
@@ -33,9 +33,9 @@ The required Python packages are listed in `requirements.txt`. To install them, 
 
 2. **Ollama**: Install and run the Ollama service according to the instructions on their website. Make sure it's accessible at the specified URL.
 
-3. **Applio**: Install and run the Applio service according to the instructions on their website. Ensure it is running locally on the specified port (default: `http://127.0.0.1:6969/`).
+3. **Applio**: Install and run the Applio service according to the instructions on their website. The latest version exposes an HTTP endpoint with CORS enabled. Ensure it is running locally on the specified port (default: `http://127.0.0.1:6969/`).
 
-4. **Configuration File**: Update the `config.ini` file with the appropriate paths and settings for your environment. 
+4. **Configuration File**: Update the `config.ini` file with the appropriate paths and settings for your environment. The Applio URL is specified under the `[APPLIO]` section.
 
    - `START_PROMPT`: Your initial prompt for the Ollama model.
    - `OLLAMA_MODEL`: The name of the Ollama model to use.

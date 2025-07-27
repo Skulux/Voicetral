@@ -2,7 +2,7 @@ import configparser
 import ollama
 import speech_recognition as sr
 import whisper
-from gradio_client import Client
+import requests
 from pydub import AudioSegment
 import sounddevice as sd
 from scipy.io import wavfile
@@ -34,8 +34,8 @@ APPLIO_TTS_OUTPUT_PATH = config['DEFAULT']['applio_tts_output_path']
 APPLIO_RVC_OUTPUT_PATH = config['DEFAULT']['applio_rvc_output_path']
 FILTERED_CHARS = config['DEFAULT']['filtered_chars']
 
-# Initialize Gradio Client for Applio
-client = Client(config['GRADIO_CLIENT']['url'])
+# Base URL of the Applio service
+APPLIO_URL = config['APPLIO']['url']
 
 
 def time_wrapper(func):
@@ -96,40 +96,46 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
 @time_wrapper
 def convert_text_to_speech(text, output_tts_path, output_rvc_path):
     """
-    Convert text to speech using Applio's TTS API.
+    Convert text to speech using Applio via an HTTP request.
     :param text: The text to convert to speech.
     :param output_tts_path: The path to save the TTS audio file.
     :param output_rvc_path: The path to save the RVC audio file.
     :return: The path to the RVC audio file.
     """
+    payload = {
+        "tts_text": text,
+        "tts_voice": APPLIO_TTS_VOICE,
+        "output_tts_path": output_tts_path,
+        "output_rvc_path": output_rvc_path,
+        "pth_path": APPLIO_PTH_PATH,
+        "index_path": APPLIO_INDEX_PATH,
+        "tts_rate": 0,
+        "pitch": 0,
+        "filter_radius": 3,
+        "index_rate": 0.75,
+        "volume_envelope": 1,
+        "protect": 0.5,
+        "hop_length": 128,
+        "f0_method": "rmvpe",
+        "split_audio": False,
+        "f0_autotune": False,
+        "clean_audio": True,
+        "clean_strength": 0.5,
+        "export_format": "WAV",
+        "upscale_audio": False,
+        "f0_file": None,
+        "embedder_model": "contentvec",
+        "embedder_model_custom": None,
+    }
     try:
-        response = client.predict(
-            tts_text=text,
-            tts_voice=APPLIO_TTS_VOICE,
-            output_tts_path=output_tts_path,
-            output_rvc_path=output_rvc_path,
-            pth_path=APPLIO_PTH_PATH,
-            index_path=APPLIO_INDEX_PATH,
-            tts_rate=0,
-            pitch=0,
-            filter_radius=3,
-            index_rate=0.75,
-            volume_envelope=1,
-            protect=0.5,
-            hop_length=128,
-            f0_method="rmvpe",
-            split_audio=False,
-            f0_autotune=False,
-            clean_audio=True,
-            clean_strength=0.5,
-            export_format="WAV",
-            upscale_audio=False,
-            f0_file=None,
-            embedder_model="contentvec",
-            embedder_model_custom=None,
-            api_name="/run_tts_script"
+        response = requests.post(
+            f"{APPLIO_URL.rstrip('/')}/run_tts_script",
+            json=payload,
+            headers={"Accept": "application/json"},
+            timeout=120,
         )
-        logging.info(f"Response: {response}")
+        response.raise_for_status()
+        logging.info(f"Response: {response.text}")
         return output_rvc_path
     except Exception as e:
         logging.error(f"Could not convert text to speech: {e}")
