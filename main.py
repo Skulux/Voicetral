@@ -2,10 +2,11 @@ import configparser
 import io
 
 import ollama
-import requests
 import speech_recognition as sr
 import whisper
-from gradio_client import Client
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+import numpy as np
 from pydub import AudioSegment
 import sounddevice as sd
 from scipy.io import wavfile
@@ -14,7 +15,7 @@ import logging
 import time
 import wave
 import tempfile
-import numpy as np
+import os
 
 
 # Initialize logging
@@ -28,19 +29,12 @@ config.read('config.ini')
 # Access configuration values
 START_PROMPT = config['DEFAULT']['start_prompt']
 OLLAMA_MODEL = config['DEFAULT']['ollama_model']
-APPLIO_TTS_VOICE = config['DEFAULT']['applio_tts_voice']
-APPLIO_PTH_PATH = config['DEFAULT']['applio_pth_path']
-APPLIO_INDEX_PATH = config['DEFAULT']['applio_index_path']
+BARK_VOICE_PRESET = config['DEFAULT'].get('bark_voice_preset', 'v2/en_speaker_6')
+TTS_OUTPUT_PATH = config['DEFAULT']['tts_output_path']
 INPUT_DEVICE_INDEX = config.getint('DEFAULT', 'input_device_index')
 OUTPUT_DEVICE_INDEX = config.getint('DEFAULT', 'output_device_index')
-APPLIO_TTS_OUTPUT_PATH = config['DEFAULT']['applio_tts_output_path']
-APPLIO_RVC_OUTPUT_PATH = config['DEFAULT']['applio_rvc_output_path']
 FILTERED_CHARS = config['DEFAULT']['filtered_chars']
-TTS_RATE = 0
-PITCH = 0
-
-# Initialize Gradio Client for Applio
-client = Client(config['GRADIO_CLIENT']['url'])
+BARK_MODELS_PRELOADED = False
 
 
 def time_wrapper(func):
@@ -99,44 +93,22 @@ def get_ollama_response(prompt, user_id, model=OLLAMA_MODEL, conversation_histor
 
 
 @time_wrapper
-def convert_text_to_speech(text, output_tts_path, output_rvc_path):
-    global TTS_RATE, PITCH
+def convert_text_to_speech(text, output_tts_path):
     """
-    Convert text to speech using Applio's TTS API.
+    Convert text to speech using Suno's Bark.
     :param text: The text to convert to speech.
-    :param output_tts_path: The path to save the TTS audio file.
-    :param output_rvc_path: The path to save the RVC audio file.
-    :return: The path to the RVC audio file.
+    :param output_tts_path: The path to save the audio file.
+    :return: The path to the generated audio file.
     """
+    global BARK_MODELS_PRELOADED
     try:
-        response = client.predict(
-            tts_text=text,
-            tts_voice=APPLIO_TTS_VOICE,
-            output_tts_path=output_tts_path,
-            output_rvc_path=output_rvc_path,
-            pth_path=APPLIO_PTH_PATH,
-            index_path=APPLIO_INDEX_PATH,
-            tts_rate=0,
-            pitch=0,
-            filter_radius=3,
-            index_rate=0.75,
-            volume_envelope=1,
-            protect=0.5,
-            hop_length=128,
-            f0_method="rmvpe",
-            split_audio=False,
-            f0_autotune=False,
-            clean_audio=True,
-            clean_strength=0.5,
-            export_format="WAV",
-            upscale_audio=False,
-            f0_file=None,
-            embedder_model="contentvec",
-            embedder_model_custom=None,
-            api_name="/run_tts_script"
-        )
-        logging.info(f"Response: {response}")
-        return output_rvc_path
+        if not BARK_MODELS_PRELOADED:
+            preload_models()
+            BARK_MODELS_PRELOADED = True
+        audio_array = generate_audio(text, history_prompt=BARK_VOICE_PRESET)
+        audio_int16 = np.int16(audio_array * 32767)
+        write_wav(output_tts_path, SAMPLE_RATE, audio_int16)
+        return output_tts_path
     except Exception as e:
         logging.error(f"Could not convert text to speech: {e}")
         return None
@@ -199,52 +171,6 @@ def speech_to_text_whisper(audio_file):
         return None
 
 
-@time_wrapper
-def speech_to_text(input_device=INPUT_DEVICE_INDEX, mode="sr"):
-    """
-    Convert speech to text using either the SpeechRecognition library or Whisper.
-    :param input_device: The input device index to use.
-    :param mode: The mode of transcription ('sr' for SpeechRecognition or 'whisper' for Whisper).
-    :return: The recognized text or None if not recognized.
-    """
-    recognizer = sr.Recognizer()
-
-    with sr.Microphone(device_index=input_device) as source:
-        logging.info("Listening...")
-        audio = recognizer.listen(source)
-        logging.info("Audio captured.")
-
-        try:
-            if mode == "sr":
-                # Using SpeechRecognition
-                text = recognizer.recognize_google(audio)
-                logging.info(f"You said: {text}")
-                return text
-            elif mode == "whisper":
-                # Save the audio to a temporary file for Whisper
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                    temp_file_name = temp_file.name
-                    # Save audio data
-                    with wave.open(temp_file_name, 'wb') as wf:
-                        wf.setnchannels(1)  # Mono
-                        wf.setsampwidth(2)  # Sample width in bytes
-                        wf.setframerate(44100)  # Sample rate
-                        wf.writeframes(audio.get_raw_data())  # Write audio data
-
-                # Call the Whisper transcription function
-                return speech_to_text_whisper(temp_file_name)
-            else:
-                logging.error(f"Invalid mode specified: {mode}")
-                return None
-        except sr.UnknownValueError:
-            logging.error("Could not understand the audio.")
-            return None
-        except sr.RequestError:
-            logging.error("Speech recognition service request failed.")
-            return None
-        except Exception as e:
-            logging.error(f"An unexpected error occurred: {e}")
-            return None
 
 
 @time_wrapper
@@ -313,24 +239,17 @@ def filter_response(input_text, filtered_chars=FILTERED_CHARS):
 
 import asyncio
 
-async def convert_text_to_speech_async(text, output_tts_path, output_rvc_path):
-    global TTS_RATE, PITCH
+async def convert_text_to_speech_async(text, output_tts_path):
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, convert_text_to_speech, text, output_tts_path, output_rvc_path)
-
-
-def preload_applio():
-    global client
-    client = Client(config['GRADIO_CLIENT']['url'])  # Initialize once
+    return await loop.run_in_executor(None, convert_text_to_speech, text, output_tts_path)
 
 
 def main():
     """
-    Main function to run the combined Ollama and Applio chatbot.
+    Main function to run the Voicetral chatbot.
     :return: None
     """
     user_id = "user"
-    preload_applio()
     conversation_history = load_conversation_history(user_id)
     logging.info("Welcome to the Voicetral!\nTalk to me or say 'exit' to end and save the conversation")
 
@@ -344,9 +263,8 @@ def main():
             response = get_ollama_response(user_input, user_id, conversation_history=conversation_history, limit=0)
             response = filter_response(response)
 
-            tts_path = APPLIO_TTS_OUTPUT_PATH
-            rvc_path = APPLIO_RVC_OUTPUT_PATH
-            audio_file = asyncio.run(convert_text_to_speech_async(response, tts_path, rvc_path))
+            tts_path = TTS_OUTPUT_PATH
+            audio_file = asyncio.run(convert_text_to_speech_async(response, tts_path))
 
             if audio_file:
                 resampled_audio = resample_audio(audio_file)
